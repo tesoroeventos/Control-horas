@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Control de Turnos</title>
+<meta name="theme-color" content="#12141C">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#12141C; --surface:#1B1F2B; --surface2:#232837; --line:#2E3547;
+  --tx:#E8EAF0; --mut:#8A93A8; --dim:#5C6579;
+  --normal:#6E86AE; --x50:#F2A65A; --x100:#FF5C7A; --franco:#9B7EDE;
+  --manana:#F2A65A; --tarde:#4EA8DE; --noche:#9B7EDE;
+  --r:12px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--tx);
+  font-family:Inter,system-ui,-apple-system,sans-serif;
+  font-size:15px; line-height:1.45;
+  padding-bottom:calc(76px + env(safe-area-inset-bottom));
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+h1,h2,h3,.num,.tabs b{font-family:'Barlow Condensed',Impact,system-ui,sans-serif;font-weight:600;letter-spacing:.01em}
+
+/* header */
+header{padding:18px 0 10px;display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+header h1{margin:0;font-size:26px;text-transform:uppercase;letter-spacing:.06em}
+header .saldo{font-family:'Barlow Condensed',sans-serif;font-size:15px;color:var(--mut);white-space:nowrap}
+header .saldo b{font-size:22px;color:var(--franco)}
+
+/* generic */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}
+label.lb{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--mut);margin:0 0 6px}
+input,select,textarea{
+  width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--tx);
+  border-radius:10px;padding:11px 12px;font:inherit;font-size:16px
+}
+input:focus,select,textarea:focus,button:focus-visible{outline:2px solid #4EA8DE;outline-offset:1px}
+.row{display:flex;gap:10px}.row>*{flex:1;min-width:0}
+.mt{margin-top:12px}
+
+/* segmented */
+.seg{display:flex;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;background:none;border:0;color:var(--mut);font:inherit;font-size:14px;padding:9px 4px;border-radius:8px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--tx);color:var(--bg);font-weight:600}
+
+/* turnos */
+.turnos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.turno{
+  background:var(--surface2);border:1px solid var(--line);border-left:3px solid var(--c);
+  border-radius:10px;padding:10px 8px;text-align:left;cursor:pointer;color:var(--tx)
+}
+.turno[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 18%,var(--surface2));border-color:var(--c)}
+.turno .t{font-family:'Barlow Condensed',sans-serif;font-size:17px;text-transform:uppercase;letter-spacing:.05em}
+.turno .h{font-size:11px;color:var(--mut);font-variant-numeric:tabular-nums}
+
+/* cinta 24h — elemento firma */
+.cinta{margin-top:14px}
+.cinta .bar{display:flex;height:26px;border-radius:7px;overflow:hidden;background:var(--surface2);border:1px solid var(--line)}
+.cinta .sg{position:relative}
+.cinta .sg.normal{background:var(--normal)}
+.cinta .sg.x50{background:var(--x50)}
+.cinta .sg.x100{background:var(--x100)}
+.cinta .ends{display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:5px;font-variant-numeric:tabular-nums}
+.cinta .cut{position:absolute;top:0;bottom:0;left:0;width:2px;background:var(--bg);opacity:.7}
+
+/* leyenda / totales */
+.tot{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.tot div{background:var(--surface2);border-radius:10px;padding:9px 10px;border-top:2px solid var(--c)}
+.tot .k{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--mut)}
+.tot .v{font-family:'Barlow Condensed',sans-serif;font-size:21px;font-variant-numeric:tabular-nums;line-height:1.1}
+
+/* botones */
+.btn{
+  width:100%;background:var(--tx);color:var(--bg);border:0;border-radius:10px;
+  padding:14px;font:inherit;font-weight:600;font-size:16px;cursor:pointer
+}
+.btn.ghost{background:transparent;color:var(--tx);border:1px solid var(--line)}
+.btn.danger{background:transparent;color:var(--x100);border:1px solid var(--x100)}
+.btn.sm{padding:10px;font-size:14px}
+
+/* registros */
+.reg{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:10px;padding:11px 12px;margin-bottom:8px;cursor:pointer;width:100%;text-align:left;color:inherit;font:inherit}
+.reg .d{width:42px;flex:0 0 42px;text-align:center}
+.reg .d b{font-family:'Barlow Condensed',sans-serif;font-size:22px;display:block;line-height:1}
+.reg .d span{font-size:10px;text-transform:uppercase;color:var(--mut);letter-spacing:.06em}
+.reg .m{flex:1;min-width:0}
+.reg .m .t{font-size:14px;font-weight:500}
+.reg .m .s{font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums}
+.reg .r{font-family:'Barlow Condensed',sans-serif;font-size:19px;font-variant-numeric:tabular-nums;text-align:right}
+.pill{display:inline-block;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:5px;vertical-align:1px}
+.pill.f{background:color-mix(in srgb,var(--franco) 25%,transparent);color:var(--franco)}
+.pill.h{background:color-mix(in srgb,var(--x100) 22%,transparent);color:var(--x100)}
+
+/* mes nav */
+.mes{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 12px}
+.mes button{background:var(--surface);border:1px solid var(--line);color:var(--tx);width:40px;height:40px;border-radius:10px;font-size:18px;cursor:pointer}
+.mes b{font-family:'Barlow Condensed',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.06em}
+
+/* resumen */
+.big{display:flex;align-items:baseline;gap:8px;margin:2px 0 4px}
+.big b{font-family:'Barlow Condensed',sans-serif;font-size:52px;line-height:.9;font-variant-numeric:tabular-nums}
+.big span{color:var(--mut);font-size:13px}
+.lin{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.lin:last-child{border:0}
+.lin .k{color:var(--mut);display:flex;align-items:center;gap:8px}
+.dot{width:9px;height:9px;border-radius:3px;background:var(--c);flex:0 0 9px}
+.lin .v{font-variant-numeric:tabular-nums;font-weight:500}
+h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--mut);margin:22px 0 8px}
+
+/* tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
+.tabs button{flex:1;background:none;border:0;color:var(--dim);padding:8px 2px;cursor:pointer;border-radius:10px;font:inherit}
+.tabs b{display:block;font-size:15px;text-transform:uppercase;letter-spacing:.05em}
+.tabs button[aria-current="true"]{color:var(--tx);background:var(--surface)}
+.hide{display:none}
+.empty{text-align:center;color:var(--dim);padding:40px 20px;font-size:14px}
+.note{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.5}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;background:var(--tx);color:var(--bg);padding:11px 18px;border-radius:99px;font-size:14px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9}
+.toast.on{opacity:1}
+.chk{display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer}
+.chk input{width:20px;height:20px;flex:0 0 20px;accent-color:var(--x100)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Turnos</h1>
+    <div class="saldo">Francos <b id="hdSaldo">0</b></div>
+  </header>
+
+  <!-- ============ CARGAR ============ -->
+  <section id="v-cargar">
+    <div class="card">
+      <div class="seg" id="segTipo">
+        <button data-v="trabajo" aria-pressed="true">Trabajé</button>
+        <button data-v="franco" aria-pressed="false">Me tomé franco</button>
+      </div>
+
+      <div class="mt">
+        <label class="lb" for="fFecha">Fecha</label>
+        <input type="date" id="fFecha">
+      </div>
+
+      <div id="boxTrabajo">
+        <div class="mt seg" id="segModo">
+          <button data-v="turno" aria-pressed="true">Por turno</button>
+          <button data-v="manual" aria-pressed="false">Entrada y salida</button>
+        </div>
+
+        <div id="boxTurno" class="mt">
+          <div class="turnos" id="turnos">
+            <button class="turno" style="--c:var(--manana)" data-v="manana" aria-pressed="true"><span class="t">Mañana</span><span class="h">06 — 14</span></button>
+            <button class="turno" style="--c:var(--tarde)" data-v="tarde" aria-pressed="false"><span class="t">Tarde</span><span class="h">14 — 22</span></button>
+            <button class="turno" style="--c:var(--noche)" data-v="noche" aria-pressed="false"><span class="t">Noche</span><span class="h">22 — 06</span></button>
+          </div>
+          <div class="row mt">
+            <div><label class="lb" for="fAntes">Extra antes (h)</label><input type="number" id="fAntes" value="0" min="0" max="12" step="0.5" inputmode="decimal"></div>
+            <div><label class="lb" for="fDesp">Extra después (h)</label><input type="number" id="fDesp" value="0" min="0" max="12" step="0.5" inputmode="decimal"></div>
+          </div>
+        </div>
+
+        <div id="boxManual" class="mt hide">
+          <div class="row">
+            <div><label class="lb" for="fIn">Entrada</label><input type="time" id="fIn" value="06:00" step="300"></div>
+            <div><label class="lb" for="fOut">Salida</label><input type="time" id="fOut" value="14:00" step="300"></div>
+          </div>
+          <p class="note">Si la salida es menor que la entrada, se toma como que cerrás al día siguiente.</p>
+        </div>
+
+        <label class="chk mt hide" id="lbSabN" for="fSabN"><input type="checkbox" id="fSabN"> Sábado de semana de mañana (06–14 normales)</label>
+        <label class="chk mt" for="fFer"><input type="checkbox" id="fFer"> Es feriado</label>
+
+        <div class="cinta" id="cinta"></div>
+        <div class="tot" id="totPrev"></div>
+        <p class="note" id="notaPrev"></p>
+      </div>
+
+      <div class="mt"><label class="lb" for="fNota">Nota (opcional)</label><input type="text" id="fNota" placeholder="Ej: cubrí a Pérez"></div>
+      <button class="btn mt" id="btnGuardar">Guardar jornada</button>
+      <button class="btn ghost sm mt hide" id="btnCancel">Cancelar edición</button>
+    </div>
+  </section>
+
+  <!-- ============ REGISTROS ============ -->
+  <section id="v-registros" class="hide">
+    <div class="mes"><button id="rPrev">‹</button><b id="rMes"></b><button id="rNext">›</button></div>
+    <div id="listaRegs"></div>
+  </section>
+
+  <!-- ============ RESUMEN ============ -->
+  <section id="v-resumen" class="hide">
+    <div class="mes"><button id="sPrev">‹</button><b id="sMes"></b><button id="sNext">›</button></div>
+    <div id="resumen"></div>
+    <button class="btn mt" id="btnWa">Copiar resumen para WhatsApp</button>
+    <button class="btn ghost mt" id="btnShare">Compartir</button>
+    <button class="btn ghost mt" id="btnCsv">Descargar planilla CSV</button>
+    <h3 class="sec">Reglas aplicadas</h3>
+    <div class="card">
+      <p class="note" style="margin:0">
+        Turnos de 8 h: mañana 06–14, tarde 14–22, noche 22–06.<br>
+        Lunes a viernes y sábado hasta las 12: lo que pasa de 8 h va al 50 %.<br>
+        Sábado desde las 12, domingos y feriados: <b>todas</b> las horas al 100 %.<br>
+        Excepción: si estás de semana de mañana, el sábado de 06 a 14 va entero como horas normales. La casilla se marca sola cuando cargás turno mañana un sábado.<br>
+        Sábado trabajando después de las 17 → 1 franco. Domingo → 1 franco. Máximo 1 por jornada.<br>
+        Los tramos se cortan por medianoche: un turno noche reparte sus horas entre los dos días.
+      </p>
+    </div>
+    <div style="height:20px"></div>
+  </section>
+</div>
+
+<nav class="tabs">
+  <button data-t="cargar" aria-current="true"><b>Cargar</b></button>
+  <button data-t="registros"><b>Registros</b></button>
+  <button data-t="resumen"><b>Resumen</b></button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- almacenamiento (funciona en artifact y en GitHub Pages) ---------- */
+const KEY='turnos_v1';
+const DB={
+  async get(k){
+    if(window.storage){ try{const r=await window.storage.get(k);return r?r.value:null}catch(e){return null} }
+    try{return localStorage.getItem(k)}catch(e){return null}
+  },
+  async set(k,v){
+    if(window.storage){ try{await window.storage.set(k,v)}catch(e){} return }
+    try{localStorage.setItem(k,v)}catch(e){}
+  }
+};
+
+/* ---------- estado ---------- */
+const TURNOS={manana:{n:'Mañana',in:'06:00',out:'14:00',c:'var(--manana)'},
+              tarde:{n:'Tarde',in:'14:00',out:'22:00',c:'var(--tarde)'},
+              noche:{n:'Noche',in:'22:00',out:'06:00',c:'var(--noche)'},
+              manual:{n:'Manual',c:'var(--normal)'},
+              franco:{n:'Franco tomado',c:'var(--franco)'}};
+const BASE=480; // jornada normal en minutos
+let S={regs:[],feriados:[]};
+let form={tipo:'trabajo',modo:'turno',turno:'manana',editId:null};
+let mesR=hoyMes(), mesS=hoyMes();
+
+/* ---------- utilidades de fecha ---------- */
+function pad(n){return String(n).padStart(2,'0')}
+function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function hoyMes(){const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)}
+function dtOf(f,hm){const[y,m,d]=f.split('-').map(Number);const[h,mi]=hm.split(':').map(Number);return new Date(y,m-1,d,h,mi)}
+function addMin(d,n){return new Date(d.getTime()+n*60000)}
+function hm(min){const s=min<0?'-':'';min=Math.abs(min);return s+Math.floor(min/60)+' h '+pad(min%60)}
+function hDec(min){return (min/60).toFixed(2).replace('.',',')}
+const DIAS=['dom','lun','mar','mié','jue','vie','sáb'];
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function nomMes(k){const[y,m]=k.split('-');return MESES[+m-1]+' '+y}
+function shiftMes(k,n){const[y,m]=k.split('-').map(Number);const d=new Date(y,m-1+n,1);return d.getFullYear()+'-'+pad(d.getMonth()+1)}
+
+/* ---------- núcleo del cálculo ---------- */
+function es100(d,fer,sabN){
+  const k=ymd(d), dow=d.getDay(), h=d.getHours();
+  if(fer.has(k)) return true;          // feriado
+  if(dow===0) return true;             // domingo
+  if(dow===6){
+    if(sabN && h>=6 && h<14) return false; // sábado de semana de mañana: turno normal
+    return h>=12;                          // sábado desde las 12
+  }
+  return false;
+}
+function calc(reg){
+  if(reg.tipo==='franco') return {tipo:'franco',total:0,normal:0,x50:0,x100:0,franco:0,segs:[],ini:null,fin:null};
+  const fer=new Set(S.feriados), sabN=!!reg.sabNorm;
+  const ini=dtOf(reg.fecha,reg.in);
+  let fin=dtOf(reg.fecha,reg.out);
+  if(fin<=ini) fin=addMin(fin,1440);
+  const total=Math.round((fin-ini)/60000);
+  let normal=0,x50=0,x100=0,franco=false,segs=[];
+  for(let i=0;i<total;i++){
+    const t=addMin(ini,i), dow=t.getDay();
+    let b;
+    if(es100(t,fer,sabN)){b='x100';x100++}
+    else if(i<BASE){b='normal';normal++}
+    else {b='x50';x50++}
+    if(dow===0) franco=true;
+    if(dow===6 && t.getHours()>=17) franco=true;
+    const last=segs[segs.length-1];
+    if(last && last.b===b) last.m++; else segs.push({b:b,m:1,desde:t});
+  }
+  return {tipo:'trabajo',total:total,normal:normal,x50:x50,x100:x100,franco:franco?1:0,segs:segs,ini:ini,fin:fin};
+}
+function totales(regs){
+  const t={total:0,normal:0,x50:0,x100:0,gen:0,tom:0,jor:0};
+  regs.forEach(r=>{
+    if(r.tipo==='franco'){t.tom++;return}
+    const c=calc(r);
+    t.total+=c.total;t.normal+=c.normal;t.x50+=c.x50;t.x100+=c.x100;t.gen+=c.franco;t.jor++;
+  });
+  t.saldo=t.gen-t.tom;
+  return t;
+}
+function delMes(k){return S.regs.filter(r=>r.fecha.slice(0,7)===k).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0)}
+
+/* ---------- formulario ---------- */
+const $=id=>document.getElementById(id);
+function horasForm(){
+  if(form.modo==='manual') return {in:$('fIn').value||'06:00',out:$('fOut').value||'14:00',turno:'manual'};
+  const t=TURNOS[form.turno];
+  const a=Math.max(0,parseFloat($('fAntes').value)||0), d=Math.max(0,parseFloat($('fDesp').value)||0);
+  const i=addMin(dtOf('2000-01-02',t.in),-a*60), f=addMin(dtOf('2000-01-02',t.out),d*60);
+  return {in:pad(i.getHours())+':'+pad(i.getMinutes()),out:pad(f.getHours())+':'+pad(f.getMinutes()),turno:form.turno};
+}
+function regForm(){
+  const fecha=$('fFecha').value||ymd(new Date());
+  if(form.tipo==='franco') return {fecha:fecha,tipo:'franco',turno:'franco',in:'00:00',out:'00:00',nota:$('fNota').value.trim()};
+  const h=horasForm();
+  return {fecha:fecha,tipo:'trabajo',turno:h.turno,in:h.in,out:h.out,sabNorm:$('fSabN').checked,nota:$('fNota').value.trim()};
+}
+function esSabado(f){return f && dtOf(f,'12:00').getDay()===6}
+function sincSabN(auto){
+  const sab=esSabado($('fFecha').value) && form.tipo==='trabajo';
+  $('lbSabN').classList.toggle('hide',!sab);
+  if(!sab){$('fSabN').checked=false;return}
+  if(auto) $('fSabN').checked = (form.modo==='turno' && form.turno==='manana');
+}
+function pintarPreview(){
+  if(form.tipo==='franco'){$('cinta').innerHTML='';$('totPrev').innerHTML='';$('notaPrev').textContent='';return}
+  const fer=new Set(S.feriados); const fecha=$('fFecha').value;
+  if($('fFer').checked && fecha) fer.add(fecha); else fer.delete(fecha);
+  S.feriados=[...fer];
+  const c=calc(regForm());
+  const LB={normal:['Normales','var(--normal)'],x50:['Extra 50 %','var(--x50)'],x100:['Al 100 %','var(--x100)']};
+  $('cinta').innerHTML=
+    '<div class="bar">'+c.segs.map(s=>'<div class="sg '+s.b+'" style="flex:'+s.m+'"></div>').join('')+'</div>'+
+    '<div class="ends"><span>'+c.ini.getHours()+':'+pad(c.ini.getMinutes())+' '+DIAS[c.ini.getDay()]+
+    '</span><span>'+hm(c.total)+'</span><span>'+
+    c.fin.getHours()+':'+pad(c.fin.getMinutes())+' '+DIAS[c.fin.getDay()]+'</span></div>';
+  $('totPrev').innerHTML=['normal','x50','x100'].map(b=>
+    '<div style="--c:'+LB[b][1]+'"><div class="k">'+LB[b][0]+'</div><div class="v">'+hm(c[b])+'</div></div>').join('');
+  $('notaPrev').textContent = c.franco ? 'Esta jornada genera 1 franco.' : 'Esta jornada no genera franco.';
+}
+function limpiar(){
+  form.editId=null; $('fNota').value=''; $('fAntes').value=0; $('fDesp').value=0; $('fFer').checked=false; sincSabN(true);
+  $('btnGuardar').textContent='Guardar jornada'; $('btnCancel').classList.add('hide'); pintarPreview();
+}
+function cargarEn(r){
+  form.editId=r.id; form.tipo=r.tipo; $('fFecha').value=r.fecha; $('fNota').value=r.nota||'';
+  $('fFer').checked=S.feriados.includes(r.fecha);
+  if(r.tipo==='trabajo'){
+    if(TURNOS[r.turno] && r.turno!=='manual'){
+      form.modo='turno'; form.turno=r.turno;
+      const t=TURNOS[r.turno];
+      const a=(dtOf('2000-01-02',t.in)-dtOf('2000-01-02',r.in))/3600000;
+      let f=dtOf('2000-01-02',r.out), o=dtOf('2000-01-02',t.out);
+      if(r.turno==='noche'){ if(f<dtOf('2000-01-02',r.in))f=addMin(f,1440); o=addMin(o,1440); }
+      $('fAntes').value=Math.max(0,a); $('fDesp').value=Math.max(0,(f-o)/3600000);
+    }else{ form.modo='manual'; $('fIn').value=r.in; $('fOut').value=r.out; }
+  }
+  $('btnGuardar').textContent='Guardar cambios'; $('btnCancel').classList.remove('hide');
+  sincSegs(); sincSabN(false); $('fSabN').checked=!!r.sabNorm; tab('cargar'); pintarPreview();
+}
+function sincSegs(){
+  [...$('segTipo').children].forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===form.tipo));
+  [...$('segModo').children].forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===form.modo));
+  [...$('turnos').children].forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===form.turno));
+  $('boxTrabajo').classList.toggle('hide',form.tipo==='franco');
+  $('boxTurno').classList.toggle('hide',form.modo!=='turno');
+  $('boxManual').classList.toggle('hide',form.modo!=='manual');
+}
+
+/* ---------- vistas ---------- */
+function pintarRegs(){
+  $('rMes').textContent=nomMes(mesR);
+  const rs=delMes(mesR);
+  if(!rs.length){$('listaRegs').innerHTML='<div class="empty">Todavía no cargaste nada en este mes.<br>Andá a Cargar y sumá tu primera jornada.</div>';return}
+  $('listaRegs').innerHTML=rs.map(r=>{
+    const d=dtOf(r.fecha,'12:00'), c=calc(r), col=TURNOS[r.turno]?TURNOS[r.turno].c:'var(--normal)';
+    const fer=S.feriados.includes(r.fecha);
+    if(r.tipo==='franco') return `<button class="reg" style="--c:var(--franco)" data-id="${r.id}">
+      <div class="d"><b>${d.getDate()}</b><span>${DIAS[d.getDay()]}</span></div>
+      <div class="m"><div class="t">Franco tomado</div><div class="s">${r.nota||'—'}</div></div>
+      <div class="r" style="color:var(--franco)">−1</div></button>`;
+    return `<button class="reg" style="--c:${col}" data-id="${r.id}">
+      <div class="d"><b>${d.getDate()}</b><span>${DIAS[d.getDay()]}</span></div>
+      <div class="m"><div class="t">${TURNOS[r.turno].n}${fer?'<span class="pill h">feriado</span>':''}${c.franco?'<span class="pill f">+1 franco</span>':''}</div>
+      <div class="s">${r.in} → ${r.out}${c.x50?' · '+hm(c.x50)+' al 50%':''}${c.x100?' · '+hm(c.x100)+' al 100%':''}</div></div>
+      <div class="r">${hm(c.total)}</div></button>`;
+  }).join('');
+  [...document.querySelectorAll('.reg')].forEach(b=>b.onclick=()=>abrir(b.dataset.id));
+}
+function abrir(id){
+  const r=S.regs.find(x=>x.id===id); if(!r) return;
+  if(confirm('¿Editar esta jornada?\n\nAceptar: la abro para editar.\nCancelar: la dejo como está.')) cargarEn(r);
+}
+function pintarResumen(){
+  $('sMes').textContent=nomMes(mesS);
+  const rs=delMes(mesS), t=totales(rs);
+  const LB=[['normal','Normales','var(--normal)'],['x50','Extra al 50 %','var(--x50)'],['x100','Al 100 %','var(--x100)']];
+  const sem={};
+  rs.filter(r=>r.tipo==='trabajo').forEach(r=>{
+    const d=dtOf(r.fecha,'12:00'), off=(d.getDay()+6)%7, lun=addMin(d,-off*1440);
+    const k=ymd(lun); (sem[k]=sem[k]||[]).push(r);
+  });
+  const semHtml=Object.keys(sem).sort().map(k=>{
+    const st=totales(sem[k]), l=dtOf(k,'12:00'), dm=addMin(l,6*1440);
+    return `<div class="lin"><div class="k">${l.getDate()}/${pad(l.getMonth()+1)} – ${dm.getDate()}/${pad(dm.getMonth()+1)}</div>
+    <div class="v">${hm(st.total)} <span style="color:var(--x50)">${st.x50?'· '+hDec(st.x50)+' al 50':''}</span> <span style="color:var(--x100)">${st.x100?'· '+hDec(st.x100)+' al 100':''}</span></div></div>`;
+  }).join('')||'<div class="empty" style="padding:20px">Sin jornadas este mes.</div>';
+
+  $('resumen').innerHTML=`
+  <div class="card">
+    <div class="big"><b>${hm(t.total)}</b><span>en ${t.jor} jornada${t.jor===1?'':'s'}</span></div>
+    ${LB.map(([k,n,c])=>`<div class="lin"><div class="k"><span class="dot" style="--c:${c}"></span>${n}</div><div class="v">${hm(t[k])} <span style="color:var(--mut)">(${hDec(t[k])})</span></div></div>`).join('')}
+  </div>
+  <div class="card">
+    <div class="lin"><div class="k">Francos generados</div><div class="v">${t.gen}</div></div>
+    <div class="lin"><div class="k">Francos tomados</div><div class="v">${t.tom}</div></div>
+    <div class="lin"><div class="k"><b style="color:var(--franco)">Saldo del mes</b></div><div class="v" style="color:var(--franco)">${t.saldo>0?'+':''}${t.saldo}</div></div>
+  </div>
+  <h3 class="sec">Semana por semana</h3>
+  <div class="card">${semHtml}</div>`;
+}
+
+/* ---------- exportar ---------- */
+function textoWa(){
+  const rs=delMes(mesS), t=totales(rs);
+  let s='*CONTROL DE HORAS — '+nomMes(mesS).toUpperCase()+'*\n\n';
+  s+='Jornadas: '+t.jor+'\n';
+  s+='Total trabajado: '+hm(t.total)+' ('+hDec(t.total)+' h)\n\n';
+  s+='• Normales: '+hm(t.normal)+'\n';
+  s+='• Extras al 50%: '+hm(t.x50)+' ('+hDec(t.x50)+' h)\n';
+  s+='• Al 100%: '+hm(t.x100)+' ('+hDec(t.x100)+' h)\n\n';
+  s+='Francos generados: '+t.gen+'\n';
+  s+='Francos tomados: '+t.tom+'\n';
+  s+='*Saldo: '+(t.saldo>0?'+':'')+t.saldo+'*\n\n';
+  s+='_Detalle_\n';
+  rs.forEach(r=>{
+    const d=dtOf(r.fecha,'12:00'), p=d.getDate()+'/'+pad(d.getMonth()+1)+' '+DIAS[d.getDay()];
+    if(r.tipo==='franco'){s+=p+' — franco tomado\n';return}
+    const c=calc(r); let ex=[];
+    if(c.x50)ex.push(hDec(c.x50)+' al 50');
+    if(c.x100)ex.push(hDec(c.x100)+' al 100');
+    s+=p+' — '+TURNOS[r.turno].n+' '+r.in+'-'+r.out+' · '+hDec(c.total)+' h'+(ex.length?' ('+ex.join(' / ')+')':'')+(c.franco?' +franco':'')+'\n';
+  });
+  return s;
+}
+function csv(){
+  const rs=delMes(mesS);
+  let l=['fecha;dia;tipo;turno;entrada;salida;total_h;normales_h;extra_50_h;al_100_h;franco_generado;feriado;sabado_de_manana;nota'];
+  rs.forEach(r=>{
+    const d=dtOf(r.fecha,'12:00'), c=calc(r);
+    l.push([r.fecha,DIAS[d.getDay()],r.tipo,TURNOS[r.turno].n,r.in,r.out,hDec(c.total),hDec(c.normal),hDec(c.x50),hDec(c.x100),
+      r.tipo==='franco'?'-1':c.franco,S.feriados.includes(r.fecha)?'si':'no',r.sabNorm?'si':'no',(r.nota||'').replace(/;/g,',')].join(';'));
+  });
+  const t=totales(rs);
+  l.push('');l.push('TOTAL;;;;;;'+hDec(t.total)+';'+hDec(t.normal)+';'+hDec(t.x50)+';'+hDec(t.x100)+';'+t.gen+';;;saldo francos '+t.saldo);
+  return l.join('\n');
+}
+function toast(m){const e=$('toast');e.textContent=m;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1900)}
+
+/* ---------- eventos ---------- */
+function tab(n){
+  ['cargar','registros','resumen'].forEach(k=>$('v-'+k).classList.toggle('hide',k!==n));
+  [...document.querySelectorAll('.tabs button')].forEach(b=>b.setAttribute('aria-current',b.dataset.t===n));
+  if(n==='registros')pintarRegs(); if(n==='resumen')pintarResumen();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>tab(b.dataset.t));
+const upd=auto=>{sincSegs();sincSabN(auto);pintarPreview()};
+$('segTipo').onclick=e=>{const b=e.target.closest('button');if(!b)return;form.tipo=b.dataset.v;upd(true)};
+$('segModo').onclick=e=>{const b=e.target.closest('button');if(!b)return;form.modo=b.dataset.v;upd(true)};
+$('turnos').onclick=e=>{const b=e.target.closest('button');if(!b)return;form.turno=b.dataset.v;upd(true)};
+$('fFecha').onchange=()=>upd(true);
+['fAntes','fDesp','fIn','fOut','fFer','fSabN'].forEach(id=>{$(id).oninput=pintarPreview;$(id).onchange=pintarPreview});
+
+$('btnGuardar').onclick=async()=>{
+  const r=regForm();
+  if(!r.fecha){toast('Elegí una fecha');return}
+  if(r.tipo==='trabajo' && r.in===r.out){toast('La entrada y la salida no pueden ser iguales');return}
+  if(form.editId){ const i=S.regs.findIndex(x=>x.id===form.editId); S.regs[i]=Object.assign({id:form.editId},r); }
+  else { S.regs.push(Object.assign({id:Date.now().toString(36)},r)); }
+  await guardar(); limpiar(); toast(form.editId?'Cambios guardados':'Jornada guardada'); mesR=r.fecha.slice(0,7); mesS=mesR; tab('registros');
+};
+$('btnCancel').onclick=limpiar;
+$('rPrev').onclick=()=>{mesR=shiftMes(mesR,-1);pintarRegs()};
+$('rNext').onclick=()=>{mesR=shiftMes(mesR,1);pintarRegs()};
+$('sPrev').onclick=()=>{mesS=shiftMes(mesS,-1);pintarResumen()};
+$('sNext').onclick=()=>{mesS=shiftMes(mesS,1);pintarResumen()};
+$('btnWa').onclick=async()=>{
+  const t=textoWa();
+  try{await navigator.clipboard.writeText(t);toast('Resumen copiado')}
+  catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();toast('Resumen copiado')}
+};
+$('btnShare').onclick=async()=>{
+  const t=textoWa();
+  if(navigator.share){try{await navigator.share({title:'Control de horas',text:t})}catch(e){}}
+  else{await navigator.clipboard.writeText(t);toast('Tu navegador no comparte: lo copié')}
+};
+$('btnCsv').onclick=()=>{
+  const b=new Blob(['\ufeff'+csv()],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='horas-'+mesS+'.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);toast('Planilla descargada');
+};
+
+/* ---------- arranque ---------- */
+async function guardar(){await DB.set(KEY,JSON.stringify(S));pintarSaldo()}
+function pintarSaldo(){const t=totales(S.regs);$('hdSaldo').textContent=(t.saldo>0?'+':'')+t.saldo}
+(async()=>{
+  const raw=await DB.get(KEY);
+  if(raw){try{const p=JSON.parse(raw);S.regs=p.regs||[];S.feriados=p.feriados||[]}catch(e){}}
+  $('fFecha').value=ymd(new Date());
+  sincSegs();sincSabN(true);pintarPreview();pintarSaldo();
+})();
+</script>
+</body>
+</html>
