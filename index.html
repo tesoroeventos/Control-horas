@@ -38,11 +38,17 @@ header .saldo b{font-size:22px;color:var(--franco)}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}
 label.lb{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--mut);margin:0 0 6px}
 input,select,textarea{
-  width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--tx);
+  width:100%;max-width:100%;min-width:0;background:var(--surface2);border:1px solid var(--line);color:var(--tx);
   border-radius:10px;padding:11px 12px;font:inherit;font-size:16px
 }
+input[type="date"],input[type="time"]{
+  -webkit-appearance:none;appearance:none;text-align:center;
+  display:block;height:46px;line-height:22px
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value{text-align:center;margin:0}
 input:focus,select,textarea:focus,button:focus-visible{outline:2px solid #4EA8DE;outline-offset:1px}
-.row{display:flex;gap:10px}.row>*{flex:1;min-width:0}
+.row{display:flex;gap:10px;width:100%}.row>*{flex:1 1 0;min-width:0}
 .mt{margin-top:12px}
 
 /* segmented */
@@ -173,6 +179,9 @@ h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--
             <div><label class="lb" for="fIn">Entrada</label><input type="time" id="fIn" value="06:00" step="300"></div>
             <div><label class="lb" for="fOut">Salida</label><input type="time" id="fOut" value="14:00" step="300"></div>
           </div>
+          <div class="mt"><label class="lb" for="fBase">Jornada prevista (h)</label>
+          <input type="number" id="fBase" value="8" min="1" max="16" step="0.5" inputmode="decimal"></div>
+          <p class="note">Estas horas van como normales. Lo que pases de ahí es extra. Si tenés horario especial de ingreso poné 9; cuando vuelvas al turno, 8. Queda guardado el último valor.</p>
           <p class="note">Si la salida es menor que la entrada, se toma como que cerrás al día siguiente.</p>
         </div>
 
@@ -207,7 +216,7 @@ h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--
     <div class="card">
       <p class="note" style="margin:0">
         Turnos de 8 h: mañana 06–14, tarde 14–22, noche 22–06.<br>
-        Lunes a viernes y sábado hasta las 12: lo que pasa de 8 h va al 50 %.<br>
+        Lunes a viernes y sábado hasta las 12: lo que pasa de la jornada prevista va al 50 %. Por turno la jornada es de 8 h; en modo entrada y salida la definís vos (útil si tenés horario especial de ingreso).<br>
         Sábado desde las 12, domingos y feriados: <b>todas</b> las horas al 100 %.<br>
         Excepción: si estás de semana de mañana, el sábado de 06 a 14 va entero como horas normales. La casilla se marca sola cuando cargás turno mañana un sábado.<br>
         Sábado trabajando después de las 17 → 1 franco. Domingo → 1 franco. Máximo 1 por jornada.<br>
@@ -276,7 +285,7 @@ function es100(d,fer,sabN){
 }
 function calc(reg){
   if(reg.tipo==='franco') return {tipo:'franco',total:0,normal:0,x50:0,x100:0,franco:0,segs:[],ini:null,fin:null};
-  const fer=new Set(S.feriados), sabN=!!reg.sabNorm;
+  const fer=new Set(S.feriados), sabN=!!reg.sabNorm, base=reg.base||BASE;
   const ini=dtOf(reg.fecha,reg.in);
   let fin=dtOf(reg.fecha,reg.out);
   if(fin<=ini) fin=addMin(fin,1440);
@@ -286,7 +295,7 @@ function calc(reg){
     const t=addMin(ini,i), dow=t.getDay();
     let b;
     if(es100(t,fer,sabN)){b='x100';x100++}
-    else if(i<BASE){b='normal';normal++}
+    else if(i<base){b='normal';normal++}
     else {b='x50';x50++}
     if(dow===0) franco=true;
     if(dow===6 && t.getHours()>=17) franco=true;
@@ -320,7 +329,8 @@ function regForm(){
   const fecha=$('fFecha').value||ymd(new Date());
   if(form.tipo==='franco') return {fecha:fecha,tipo:'franco',turno:'franco',in:'00:00',out:'00:00',nota:$('fNota').value.trim()};
   const h=horasForm();
-  return {fecha:fecha,tipo:'trabajo',turno:h.turno,in:h.in,out:h.out,sabNorm:$('fSabN').checked,nota:$('fNota').value.trim()};
+  const base = form.modo==='manual' ? Math.round((parseFloat($('fBase').value)||8)*60) : BASE;
+  return {fecha:fecha,tipo:'trabajo',turno:h.turno,in:h.in,out:h.out,base:base,sabNorm:$('fSabN').checked,nota:$('fNota').value.trim()};
 }
 function esSabado(f){return f && dtOf(f,'12:00').getDay()===6}
 function sincSabN(auto){
@@ -360,7 +370,7 @@ function cargarEn(r){
       let f=dtOf('2000-01-02',r.out), o=dtOf('2000-01-02',t.out);
       if(r.turno==='noche'){ if(f<dtOf('2000-01-02',r.in))f=addMin(f,1440); o=addMin(o,1440); }
       $('fAntes').value=Math.max(0,a); $('fDesp').value=Math.max(0,(f-o)/3600000);
-    }else{ form.modo='manual'; $('fIn').value=r.in; $('fOut').value=r.out; }
+    }else{ form.modo='manual'; $('fIn').value=r.in; $('fOut').value=r.out; $('fBase').value=(r.base||BASE)/60; }
   }
   $('btnGuardar').textContent='Guardar cambios'; $('btnCancel').classList.remove('hide');
   sincSegs(); sincSabN(false); $('fSabN').checked=!!r.sabNorm; tab('cargar'); pintarPreview();
@@ -477,7 +487,7 @@ $('segTipo').onclick=e=>{const b=e.target.closest('button');if(!b)return;form.ti
 $('segModo').onclick=e=>{const b=e.target.closest('button');if(!b)return;form.modo=b.dataset.v;upd(true)};
 $('turnos').onclick=e=>{const b=e.target.closest('button');if(!b)return;form.turno=b.dataset.v;upd(true)};
 $('fFecha').onchange=()=>upd(true);
-['fAntes','fDesp','fIn','fOut','fFer','fSabN'].forEach(id=>{$(id).oninput=pintarPreview;$(id).onchange=pintarPreview});
+['fAntes','fDesp','fIn','fOut','fFer','fSabN','fBase'].forEach(id=>{$(id).oninput=pintarPreview;$(id).onchange=pintarPreview});
 
 $('btnGuardar').onclick=async()=>{
   const r=regForm();
@@ -485,6 +495,7 @@ $('btnGuardar').onclick=async()=>{
   if(r.tipo==='trabajo' && r.in===r.out){toast('La entrada y la salida no pueden ser iguales');return}
   if(form.editId){ const i=S.regs.findIndex(x=>x.id===form.editId); S.regs[i]=Object.assign({id:form.editId},r); }
   else { S.regs.push(Object.assign({id:Date.now().toString(36)},r)); }
+  if(form.modo==='manual') S.baseManual=r.base;
   await guardar(); limpiar(); toast(form.editId?'Cambios guardados':'Jornada guardada'); mesR=r.fecha.slice(0,7); mesS=mesR; tab('registros');
 };
 $('btnCancel').onclick=limpiar;
@@ -513,8 +524,9 @@ async function guardar(){await DB.set(KEY,JSON.stringify(S));pintarSaldo()}
 function pintarSaldo(){const t=totales(S.regs);$('hdSaldo').textContent=(t.saldo>0?'+':'')+t.saldo}
 (async()=>{
   const raw=await DB.get(KEY);
-  if(raw){try{const p=JSON.parse(raw);S.regs=p.regs||[];S.feriados=p.feriados||[]}catch(e){}}
+  if(raw){try{const p=JSON.parse(raw);S.regs=p.regs||[];S.feriados=p.feriados||[];S.baseManual=p.baseManual||BASE}catch(e){}}
   $('fFecha').value=ymd(new Date());
+  $('fBase').value=(S.baseManual||BASE)/60;
   sincSegs();sincSabN(true);pintarPreview();pintarSaldo();
 })();
 </script>
