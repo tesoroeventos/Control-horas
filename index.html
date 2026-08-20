@@ -207,14 +207,26 @@ h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--
 
   <!-- ============ RESUMEN ============ -->
   <section id="v-resumen" class="hide">
+    <div class="seg" id="segPer" style="margin-bottom:12px">
+      <button data-v="periodo" aria-pressed="true">Período de extras</button>
+      <button data-v="mes" aria-pressed="false">Mes calendario</button>
+    </div>
     <div class="mes"><button id="sPrev">‹</button><b id="sMes"></b><button id="sNext">›</button></div>
+    <div id="rango" class="note" style="text-align:center;margin:-6px 0 12px"></div>
     <div id="resumen"></div>
     <button class="btn mt" id="btnWa">Copiar resumen para WhatsApp</button>
     <button class="btn ghost mt" id="btnShare">Compartir</button>
     <button class="btn ghost mt" id="btnCsv">Descargar planilla CSV</button>
+    <h3 class="sec">Ajustes</h3>
+    <div class="card">
+      <label class="lb" for="fCorte">Día de cierre de horas extras</label>
+      <input type="number" id="fCorte" min="1" max="28" step="1" inputmode="numeric">
+      <p class="note">El período va del día siguiente al cierre del mes anterior, hasta el día de cierre de este mes. Con 20, el período de agosto es del 21 de julio al 20 de agosto.</p>
+    </div>
     <h3 class="sec">Reglas aplicadas</h3>
     <div class="card">
       <p class="note" style="margin:0">
+        Las extras se liquidan por período, no por mes calendario: del 21 de un mes al 20 del siguiente. Lo que trabajás del 21 al 31 de agosto entra en el período de septiembre.<br>
         Turnos de 8 h: mañana 06–14, tarde 14–22, noche 22–06.<br>
         Lunes a viernes y sábado hasta las 12: lo que pasa de la jornada prevista va al 50 %. Por turno la jornada es de 8 h; en modo entrada y salida la definís vos (útil si tenés horario especial de ingreso).<br>
         Sábado desde las 12, domingos y feriados: <b>todas</b> las horas al 100 %.<br>
@@ -255,9 +267,9 @@ const TURNOS={manana:{n:'Mañana',in:'06:00',out:'14:00',c:'var(--manana)'},
               manual:{n:'Manual',c:'var(--normal)'},
               franco:{n:'Franco tomado',c:'var(--franco)'}};
 const BASE=480; // jornada normal en minutos
-let S={regs:[],feriados:[]};
+let S={regs:[],feriados:[],corte:20};
 let form={tipo:'trabajo',modo:'turno',turno:'manana',editId:null};
-let mesR=hoyMes(), mesS=hoyMes();
+let mesR=hoyMes(), mesS=hoyMes(), modoPer='periodo';
 
 /* ---------- utilidades de fecha ---------- */
 function pad(n){return String(n).padStart(2,'0')}
@@ -314,7 +326,17 @@ function totales(regs){
   t.saldo=t.gen-t.tom;
   return t;
 }
-function delMes(k){return S.regs.filter(r=>r.fecha.slice(0,7)===k).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0)}
+function rangoPeriodo(k){
+  const[y,m]=k.split('-').map(Number), c=S.corte||20;
+  const desde=new Date(y,m-2,c+1), hasta=new Date(y,m-1,c);
+  return {desde:ymd(desde),hasta:ymd(hasta),dDesde:desde,dHasta:hasta};
+}
+function delMes(k,modo){
+  const rs = (modo==='periodo')
+    ? (()=>{const r=rangoPeriodo(k);return S.regs.filter(x=>x.fecha>=r.desde&&x.fecha<=r.hasta)})()
+    : S.regs.filter(r=>r.fecha.slice(0,7)===k);
+  return rs.sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
+}
 
 /* ---------- formulario ---------- */
 const $=id=>document.getElementById(id);
@@ -387,7 +409,7 @@ function sincSegs(){
 /* ---------- vistas ---------- */
 function pintarRegs(){
   $('rMes').textContent=nomMes(mesR);
-  const rs=delMes(mesR);
+  const rs=delMes(mesR,'mes');
   if(!rs.length){$('listaRegs').innerHTML='<div class="empty">Todavía no cargaste nada en este mes.<br>Andá a Cargar y sumá tu primera jornada.</div>';return}
   $('listaRegs').innerHTML=rs.map(r=>{
     const d=dtOf(r.fecha,'12:00'), c=calc(r), col=TURNOS[r.turno]?TURNOS[r.turno].c:'var(--normal)';
@@ -410,7 +432,13 @@ function abrir(id){
 }
 function pintarResumen(){
   $('sMes').textContent=nomMes(mesS);
-  const rs=delMes(mesS), t=totales(rs);
+  if(modoPer==='periodo'){
+    const r=rangoPeriodo(mesS);
+    $('rango').innerHTML='Horas extras del '+r.dDesde.getDate()+' de '+MESES[r.dDesde.getMonth()]+
+      ' al '+r.dHasta.getDate()+' de '+MESES[r.dHasta.getMonth()]+
+      '<br>Se cobran con el sueldo de <b>'+MESES[r.dHasta.getMonth()]+'</b>';
+  } else $('rango').textContent='Del 1 al último día del mes';
+  const rs=delMes(mesS,modoPer), t=totales(rs);
   const LB=[['normal','Normales','var(--normal)'],['x50','Extra al 50 %','var(--x50)'],['x100','Al 100 %','var(--x100)']];
   const sem={};
   rs.filter(r=>r.tipo==='trabajo').forEach(r=>{
@@ -439,8 +467,12 @@ function pintarResumen(){
 
 /* ---------- exportar ---------- */
 function textoWa(){
-  const rs=delMes(mesS), t=totales(rs);
-  let s='*CONTROL DE HORAS — '+nomMes(mesS).toUpperCase()+'*\n\n';
+  const rs=delMes(mesS,modoPer), t=totales(rs);
+  let s='*CONTROL DE HORAS — '+nomMes(mesS).toUpperCase()+'*\n';
+  if(modoPer==='periodo'){const r=rangoPeriodo(mesS);
+    s+='_Extras del '+r.dDesde.getDate()+'/'+pad(r.dDesde.getMonth()+1)+' al '+r.dHasta.getDate()+'/'+pad(r.dHasta.getMonth()+1)+
+       ' — se cobran con el sueldo de '+MESES[r.dHasta.getMonth()]+'_\n'}
+  s+='\n';
   s+='Jornadas: '+t.jor+'\n';
   s+='Total trabajado: '+hm(t.total)+' ('+hDec(t.total)+' h)\n\n';
   s+='• Normales: '+hm(t.normal)+'\n';
@@ -461,7 +493,7 @@ function textoWa(){
   return s;
 }
 function csv(){
-  const rs=delMes(mesS);
+  const rs=delMes(mesS,modoPer);
   let l=['fecha;dia;tipo;turno;entrada;salida;total_h;normales_h;extra_50_h;al_100_h;franco_generado;feriado;sabado_de_manana;nota'];
   rs.forEach(r=>{
     const d=dtOf(r.fecha,'12:00'), c=calc(r);
@@ -501,6 +533,12 @@ $('btnGuardar').onclick=async()=>{
 $('btnCancel').onclick=limpiar;
 $('rPrev').onclick=()=>{mesR=shiftMes(mesR,-1);pintarRegs()};
 $('rNext').onclick=()=>{mesR=shiftMes(mesR,1);pintarRegs()};
+$('segPer').onclick=e=>{const b=e.target.closest('button');if(!b)return;modoPer=b.dataset.v;
+  [...$('segPer').children].forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===modoPer));pintarResumen()};
+$('fCorte').onchange=async()=>{
+  let v=parseInt($('fCorte').value)||20; v=Math.min(28,Math.max(1,v)); $('fCorte').value=v;
+  S.corte=v; await guardar(); pintarResumen();
+};
 $('sPrev').onclick=()=>{mesS=shiftMes(mesS,-1);pintarResumen()};
 $('sNext').onclick=()=>{mesS=shiftMes(mesS,1);pintarResumen()};
 $('btnWa').onclick=async()=>{
@@ -524,8 +562,9 @@ async function guardar(){await DB.set(KEY,JSON.stringify(S));pintarSaldo()}
 function pintarSaldo(){const t=totales(S.regs);$('hdSaldo').textContent=(t.saldo>0?'+':'')+t.saldo}
 (async()=>{
   const raw=await DB.get(KEY);
-  if(raw){try{const p=JSON.parse(raw);S.regs=p.regs||[];S.feriados=p.feriados||[];S.baseManual=p.baseManual||BASE}catch(e){}}
+  if(raw){try{const p=JSON.parse(raw);S.regs=p.regs||[];S.feriados=p.feriados||[];S.baseManual=p.baseManual||BASE;S.corte=p.corte||20}catch(e){}}
   $('fFecha').value=ymd(new Date());
+  $('fCorte').value=S.corte;
   $('fBase').value=(S.baseManual||BASE)/60;
   sincSegs();sincSabN(true);pintarPreview();pintarSaldo();
 })();
