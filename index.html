@@ -120,6 +120,18 @@ input:focus,select,textarea:focus,button:focus-visible{outline:2px solid #4EA8DE
 .lin .v{font-variant-numeric:tabular-nums;font-weight:500}
 h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--mut);margin:22px 0 8px}
 
+/* rotación */
+.wk{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:10px;padding:10px 12px;margin-bottom:6px}
+.wk.hoy{background:color-mix(in srgb,var(--c) 14%,var(--surface));border-color:var(--c)}
+.wk .n{font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--dim);width:26px;flex:0 0 26px}
+.wk .f{flex:1;font-size:13px;color:var(--mut);font-variant-numeric:tabular-nums}
+.wk .tn{font-family:'Barlow Condensed',sans-serif;font-size:17px;text-transform:uppercase;letter-spacing:.05em;color:var(--c)}
+.wk .hh{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;text-align:right;min-width:52px}
+.mesrot{font-family:'Barlow Condensed',sans-serif;font-size:16px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:16px 0 7px}
+.mesrot:first-child{margin-top:0}
+.rta{font-family:'Barlow Condensed',sans-serif;font-size:26px;text-transform:uppercase;letter-spacing:.05em}
+.tabs b{font-size:14px}
+
 /* tabs */
 .tabs{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
 .tabs button{flex:1;background:none;border:0;color:var(--dim);padding:8px 2px;cursor:pointer;border-radius:10px;font:inherit}
@@ -205,6 +217,35 @@ h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--
     <div id="listaRegs"></div>
   </section>
 
+  <!-- ============ ROTACIÓN ============ -->
+  <section id="v-rotacion" class="hide">
+    <div class="card">
+      <label class="lb" for="fBusca">¿Qué turno tengo el…?</label>
+      <input type="date" id="fBusca">
+      <div id="rtaBusca" class="mt" style="text-align:center"></div>
+    </div>
+    <h3 class="sec">Próximos 4 meses</h3>
+    <div id="calRot"></div>
+    <h3 class="sec">Configurar la rotación</h3>
+    <div class="card">
+      <label class="lb" for="fAncla">Semana de referencia (elegí cualquier día de esa semana)</label>
+      <input type="date" id="fAncla">
+      <label class="lb mt" for="fAnclaT">Turno de esa semana</label>
+      <div class="turnos" id="anclaT">
+        <button class="turno" style="--c:var(--manana)" data-v="manana"><span class="t">Mañana</span><span class="h">06 — 14</span></button>
+        <button class="turno" style="--c:var(--tarde)" data-v="tarde"><span class="t">Tarde</span><span class="h">14 — 22</span></button>
+        <button class="turno" style="--c:var(--noche)" data-v="noche"><span class="t">Noche</span><span class="h">22 — 06</span></button>
+      </div>
+      <label class="lb mt">Sentido de la rotación</label>
+      <div class="seg" id="segDir">
+        <button data-v="1">Mañana → Tarde → Noche</button>
+        <button data-v="-1">Mañana → Noche → Tarde</button>
+      </div>
+      <p class="note">La semana cambia los lunes. Con esto, al cargar una jornada el turno te viene preseleccionado solo.</p>
+    </div>
+    <div style="height:20px"></div>
+  </section>
+
   <!-- ============ RESUMEN ============ -->
   <section id="v-resumen" class="hide">
     <div class="seg" id="segPer" style="margin-bottom:12px">
@@ -242,6 +283,7 @@ h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--
 <nav class="tabs">
   <button data-t="cargar" aria-current="true"><b>Cargar</b></button>
   <button data-t="registros"><b>Registros</b></button>
+  <button data-t="rotacion"><b>Rotación</b></button>
   <button data-t="resumen"><b>Resumen</b></button>
 </nav>
 <div class="toast" id="toast"></div>
@@ -338,6 +380,46 @@ function delMes(k,modo){
   return rs.sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
 }
 
+/* ---------- rotación de turnos ---------- */
+const ORDEN=['manana','tarde','noche'];
+function lunesDe(d){const o=(d.getDay()+6)%7;return new Date(d.getFullYear(),d.getMonth(),d.getDate()-o)}
+function semanasEntre(a,b){return Math.round((lunesDe(b)-lunesDe(a))/604800000)}
+function turnoDeFecha(d){
+  if(!S.ancla) return null;
+  const w=semanasEntre(dtOf(S.ancla,'12:00'),d), i=ORDEN.indexOf(S.anclaT||'manana');
+  const dir=S.dir||1;
+  return ORDEN[((i+dir*w)%3+3)%3];
+}
+function pintarRotacion(){
+  // configuración
+  $('fAncla').value=S.ancla||'';
+  [...$('anclaT').children].forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===(S.anclaT||'manana')));
+  [...$('segDir').children].forEach(b=>b.setAttribute('aria-pressed',+b.dataset.v===(S.dir||1)));
+  // buscador
+  const bf=$('fBusca').value;
+  if(bf){
+    const d=dtOf(bf,'12:00'), t=turnoDeFecha(d), T=TURNOS[t];
+    const l=lunesDe(d), dm=addMin(l,6*1440);
+    $('rtaBusca').innerHTML='<div class="rta" style="color:'+T.c+'">'+T.n+'</div>'+
+      '<div class="note" style="margin-top:2px">'+T.in+' a '+T.out+' · semana del '+l.getDate()+'/'+pad(l.getMonth()+1)+' al '+dm.getDate()+'/'+pad(dm.getMonth()+1)+'</div>';
+  } else $('rtaBusca').innerHTML='';
+  // calendario 4 meses
+  const hoy=new Date(), l0=lunesDe(hoy), lHoy=ymd(l0);
+  let html='', mesAct='';
+  for(let i=0;i<18;i++){
+    const l=addMin(l0,i*7*1440), dm=addMin(l,6*1440);
+    const t=turnoDeFecha(l), T=TURNOS[t];
+    const mk=MESES[l.getMonth()]+' '+l.getFullYear();
+    if(mk!==mesAct){mesAct=mk;html+='<div class="mesrot">'+mk+'</div>'}
+    html+='<div class="wk'+(ymd(l)===lHoy?' hoy':'')+'" style="--c:'+T.c+'">'+
+      '<div class="n">S'+(i+1)+'</div>'+
+      '<div class="f">'+l.getDate()+'/'+pad(l.getMonth()+1)+' — '+dm.getDate()+'/'+pad(dm.getMonth()+1)+
+        (ymd(l)===lHoy?' <b style="color:var(--tx)">· esta semana</b>':'')+'</div>'+
+      '<div><div class="tn">'+T.n+'</div><div class="hh">'+T.in+'-'+T.out+'</div></div></div>';
+  }
+  $('calRot').innerHTML=html;
+}
+
 /* ---------- formulario ---------- */
 const $=id=>document.getElementById(id);
 function horasForm(){
@@ -356,7 +438,12 @@ function regForm(){
 }
 function esSabado(f){return f && dtOf(f,'12:00').getDay()===6}
 function sincSabN(auto){
-  const sab=esSabado($('fFecha').value) && form.tipo==='trabajo';
+  const f=$('fFecha').value;
+  if(auto && f && S.ancla && form.tipo==='trabajo'){
+    const t=turnoDeFecha(dtOf(f,'12:00'));
+    if(t){form.turno=t;[...$('turnos').children].forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===t))}
+  }
+  const sab=esSabado(f) && form.tipo==='trabajo';
   $('lbSabN').classList.toggle('hide',!sab);
   if(!sab){$('fSabN').checked=false;return}
   if(auto) $('fSabN').checked = (form.modo==='turno' && form.turno==='manana');
@@ -508,9 +595,9 @@ function toast(m){const e=$('toast');e.textContent=m;e.classList.add('on');setTi
 
 /* ---------- eventos ---------- */
 function tab(n){
-  ['cargar','registros','resumen'].forEach(k=>$('v-'+k).classList.toggle('hide',k!==n));
+  ['cargar','registros','rotacion','resumen'].forEach(k=>$('v-'+k).classList.toggle('hide',k!==n));
   [...document.querySelectorAll('.tabs button')].forEach(b=>b.setAttribute('aria-current',b.dataset.t===n));
-  if(n==='registros')pintarRegs(); if(n==='resumen')pintarResumen();
+  if(n==='registros')pintarRegs(); if(n==='resumen')pintarResumen(); if(n==='rotacion')pintarRotacion();
   window.scrollTo(0,0);
 }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>tab(b.dataset.t));
@@ -533,6 +620,15 @@ $('btnGuardar').onclick=async()=>{
 $('btnCancel').onclick=limpiar;
 $('rPrev').onclick=()=>{mesR=shiftMes(mesR,-1);pintarRegs()};
 $('rNext').onclick=()=>{mesR=shiftMes(mesR,1);pintarRegs()};
+$('fBusca').onchange=pintarRotacion;
+$('fAncla').onchange=async()=>{
+  const v=$('fAncla').value; if(!v)return;
+  S.ancla=ymd(lunesDe(dtOf(v,'12:00'))); await guardar(); pintarRotacion();
+};
+$('anclaT').onclick=async e=>{const b=e.target.closest('button');if(!b)return;
+  S.anclaT=b.dataset.v; await guardar(); pintarRotacion()};
+$('segDir').onclick=async e=>{const b=e.target.closest('button');if(!b)return;
+  S.dir=+b.dataset.v; await guardar(); pintarRotacion()};
 $('segPer').onclick=e=>{const b=e.target.closest('button');if(!b)return;modoPer=b.dataset.v;
   [...$('segPer').children].forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===modoPer));pintarResumen()};
 $('fCorte').onchange=async()=>{
@@ -562,7 +658,11 @@ async function guardar(){await DB.set(KEY,JSON.stringify(S));pintarSaldo()}
 function pintarSaldo(){const t=totales(S.regs);$('hdSaldo').textContent=(t.saldo>0?'+':'')+t.saldo}
 (async()=>{
   const raw=await DB.get(KEY);
-  if(raw){try{const p=JSON.parse(raw);S.regs=p.regs||[];S.feriados=p.feriados||[];S.baseManual=p.baseManual||BASE;S.corte=p.corte||20}catch(e){}}
+  if(raw){try{const p=JSON.parse(raw);S.regs=p.regs||[];S.feriados=p.feriados||[];S.baseManual=p.baseManual||BASE;S.corte=p.corte||20;
+    S.ancla=p.ancla||null;S.anclaT=p.anclaT||'tarde';S.dir=p.dir||1}catch(e){}}
+  if(!S.ancla){ // por defecto: la semana que viene arranca de tarde
+    S.ancla=ymd(lunesDe(addMin(new Date(),7*1440))); S.anclaT='tarde'; S.dir=1; await guardar();
+  }
   $('fFecha').value=ymd(new Date());
   $('fCorte').value=S.corte;
   $('fBase').value=(S.baseManual||BASE)/60;
