@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b2430">
+<link rel="manifest" href="manifest.json">
+<title>Turnos</title>
+<style>
+  :root{
+    --bg:#141b24; --panel:#1b2430; --panel2:#222d3a;
+    --line:#2f3d4d; --txt:#e8eef4; --muted:#8ea3b8;
+    --manana:#f2b134; --tarde:#5b8def; --manual:#c264d8; --libre:#3a4a5c;
+    --ok:#3ecf8e;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--font);
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  header{padding:18px 16px 8px}
+  h1{margin:0;font-size:22px;font-weight:700;letter-spacing:-.3px}
+  .sub{color:var(--muted);font-size:13px;margin-top:2px}
+  .tabs{display:flex;gap:6px;padding:10px 16px 0}
+  .tab{flex:1;padding:10px;border:none;border-radius:10px;background:var(--panel);
+    color:var(--muted);font-size:14px;font-weight:600;font-family:var(--font)}
+  .tab.on{background:var(--panel2);color:var(--txt)}
+  .wrap{padding:14px 16px 90px}
+  /* calendario */
+  .calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .calhead button{background:var(--panel);border:none;color:var(--txt);width:38px;height:38px;
+    border-radius:10px;font-size:18px}
+  .calhead .month{font-size:16px;font-weight:700;text-transform:capitalize}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .dow{text-align:center;color:var(--muted);font-size:11px;font-weight:600;padding-bottom:2px}
+  .cell{aspect-ratio:1;border-radius:10px;background:var(--panel);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;position:relative;border:1px solid transparent}
+  .cell.empty{background:transparent}
+  .cell .d{font-size:14px;font-weight:600}
+  .cell .dot{width:7px;height:7px;border-radius:50%;margin-top:3px}
+  .cell.today{border-color:var(--ok)}
+  .cell.sel{outline:2px solid var(--ok);outline-offset:1px}
+  .m .dot{background:var(--manana)} .t .dot{background:var(--tarde)}
+  .man .dot{background:var(--manual)} .l .dot{background:var(--libre)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--muted)}
+  .legend span{display:flex;align-items:center;gap:5px}
+  .legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+  /* detalle */
+  .detail{margin-top:16px;background:var(--panel);border-radius:14px;padding:16px}
+  .detail .dt{font-size:15px;font-weight:700;text-transform:capitalize}
+  .detail .hh{font-size:26px;font-weight:800;margin:6px 0 2px;letter-spacing:-.5px}
+  .detail .tag{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;color:#141b24}
+  .row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .row button{flex:1;min-width:80px;padding:11px;border:none;border-radius:10px;font-weight:600;
+    font-size:13px;font-family:var(--font);background:var(--panel2);color:var(--txt)}
+  .row button.pri{background:var(--ok);color:#0d1520}
+  .manualbox{margin-top:12px;display:none;gap:8px;flex-wrap:wrap}
+  .manualbox.show{display:flex}
+  .manualbox label{flex:1;min-width:120px;font-size:12px;color:var(--muted)}
+  .manualbox input{width:100%;margin-top:4px;padding:10px;border-radius:9px;border:1px solid var(--line);
+    background:var(--bg);color:var(--txt);font-size:15px;font-family:var(--font)}
+  /* lista */
+  .weekblock{margin-bottom:18px}
+  .weekttl{font-size:13px;font-weight:700;color:var(--muted);margin:0 0 8px;display:flex;
+    justify-content:space-between;align-items:center}
+  .weekttl .badge{font-size:11px;padding:2px 8px;border-radius:20px;color:#141b24}
+  .li{display:flex;align-items:center;gap:12px;background:var(--panel);border-radius:11px;
+    padding:12px 14px;margin-bottom:6px}
+  .li .bar{width:4px;align-self:stretch;border-radius:4px}
+  .li .day{font-size:13px;color:var(--muted);width:74px;text-transform:capitalize}
+  .li .hrs{font-weight:700;font-size:15px}
+  .li .note{font-size:11px;color:var(--muted);margin-left:auto}
+  .empty-msg{color:var(--muted);text-align:center;padding:30px;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Turnos</h1>
+  <div class="sub" id="sub">Rotación semanal · próximos 6 meses</div>
+</header>
+<div class="tabs">
+  <button class="tab on" id="tabCal" onclick="setView('cal')">Calendario</button>
+  <button class="tab" id="tabList" onclick="setView('list')">Lista</button>
+</div>
+
+<div class="wrap">
+  <!-- CALENDARIO -->
+  <div id="viewCal">
+    <div class="calhead">
+      <button onclick="moveMonth(-1)">‹</button>
+      <div class="month" id="monthLabel"></div>
+      <button onclick="moveMonth(1)">›</button>
+    </div>
+    <div class="grid" id="dow"></div>
+    <div class="grid" id="cal"></div>
+    <div class="legend">
+      <span><i style="background:var(--manana)"></i>Mañana 8–16</span>
+      <span><i style="background:var(--tarde)"></i>Tarde 10–18</span>
+      <span><i style="background:var(--manual)"></i>Manual</span>
+      <span><i style="background:var(--libre)"></i>Libre</span>
+    </div>
+    <div class="detail" id="detail"></div>
+  </div>
+
+  <!-- LISTA -->
+  <div id="viewList" style="display:none"></div>
+</div>
+
+<script>
+/* ===== Config ===== */
+const H1={label:"Mañana",ini:"08:00",fin:"16:00",cls:"m",color:"var(--manana)"}; // L-V
+const H2={label:"Tarde", ini:"10:00",fin:"18:00",cls:"t",color:"var(--tarde)"};  // L-V
+// Ancla: la semana del 27/08/2026 es MAÑANA (turno 0). Rotación semanal.
+const ANCHOR=new Date(2026,7,24); // lunes 24/08/2026
+const KEY="turnos_overrides_v1";
+
+/* ===== Estado ===== */
+let overrides=JSON.parse(localStorage.getItem(KEY)||"{}"); // {"YYYY-MM-DD":{ini,fin,label} | {libre:true}}
+let view="cal";
+let cursor=new Date(); cursor.setDate(1);
+let selected=null;
+
+/* ===== Utils ===== */
+const pad=n=>String(n).padStart(2,"0");
+const key=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+function mondayOf(d){const x=new Date(d);const dow=(x.getDay()+6)%7;x.setDate(x.getDate()-dow);x.setHours(0,0,0,0);return x;}
+function weeksBetween(a,b){return Math.round((mondayOf(b)-mondayOf(a))/(7*864e5));}
+function isMorningWeek(d){return ((weeksBetween(ANCHOR,d)%2)+2)%2===0;}
+
+/* Turno base según reglas. Devuelve objeto turno o null (libre) */
+function baseShift(d){
+  const dow=d.getDay(); // 0 dom .. 6 sab
+  const morning=isMorningWeek(d);
+  if(dow>=1&&dow<=5) return morning?H1:H2;          // L-V
+  if(dow===6&&!morning) return {label:"Tarde (sáb)",ini:null,fin:null,cls:"man",manualNeeded:true}; // sábado en semana tarde: manual
+  return null; // sábado en semana mañana, y domingos: libre (manual opcional)
+}
+
+/* Turno efectivo (aplica override) */
+function shiftFor(d){
+  const k=key(d);
+  if(overrides[k]){
+    const o=overrides[k];
+    if(o.libre) return {label:"Libre",ini:null,fin:null,cls:"l",color:"var(--libre)",libre:true};
+    return {label:o.label||"Manual",ini:o.ini,fin:o.fin,cls:"man",color:"var(--manual)",manual:true};
+  }
+  const b=baseShift(d);
+  if(!b) return {label:"Libre",ini:null,fin:null,cls:"l",color:"var(--libre)",libre:true};
+  if(b.manualNeeded) return {...b,color:"var(--manual)",needsManual:true};
+  return {...b,color:b.color};
+}
+
+function save(){localStorage.setItem(KEY,JSON.stringify(overrides));}
+
+/* ===== Vistas ===== */
+function setView(v){view=v;
+  tabCal.classList.toggle("on",v==="cal");
+  tabList.classList.toggle("on",v==="list");
+  viewCal.style.display=v==="cal"?"":"none";
+  viewList.style.display=v==="list"?"":"none";
+  if(v==="list")renderList();
+}
+function moveMonth(n){cursor.setMonth(cursor.getMonth()+n);renderCal();}
+
+const DOW=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+const MONTHS=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+
+function renderDow(){dow.innerHTML=DOW.map(d=>`<div class="dow">${d}</div>`).join("");}
+
+function renderCal(){
+  monthLabel.textContent=`${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}`;
+  const first=new Date(cursor.getFullYear(),cursor.getMonth(),1);
+  const startPad=(first.getDay()+6)%7;
+  const dim=new Date(cursor.getFullYear(),cursor.getMonth()+1,0).getDate();
+  const today=key(new Date());
+  let html="";
+  for(let i=0;i<startPad;i++)html+=`<div class="cell empty"></div>`;
+  for(let day=1;day<=dim;day++){
+    const d=new Date(cursor.getFullYear(),cursor.getMonth(),day);
+    const s=shiftFor(d);const k=key(d);
+    const sel=selected===k?"sel":"";
+    const isToday=today===k?"today":"";
+    html+=`<div class="cell ${s.cls} ${sel} ${isToday}" onclick="pick('${k}')">
+      <span class="d">${day}</span><span class="dot"></span></div>`;
+  }
+  cal.innerHTML=html;
+  if(!selected)selected=today;
+  renderDetail();
+}
+
+function parseKey(k){const[y,m,d]=k.split("-").map(Number);return new Date(y,m-1,d);}
+
+function renderDetail(){
+  if(!selected){detail.innerHTML="";return;}
+  const d=parseKey(selected);const s=shiftFor(d);
+  const fecha=`${DOW[(d.getDay()+6)%7]} ${d.getDate()} de ${MONTHS[d.getMonth()]}`;
+  let tag=`<span class="tag" style="background:${s.color||'var(--libre)'}">${s.label}</span>`;
+  let hh = s.ini? `${s.ini} – ${s.fin}` : (s.needsManual? "Falta cargar horario" : "Sin turno");
+  detail.innerHTML=`
+    <div class="dt">${fecha}</div>
+    <div class="hh">${hh}</div>
+    ${tag}
+    <div class="row">
+      <button class="pri" onclick="toggleManual()">Horario manual</button>
+      <button onclick="setLibre('${selected}')">Marcar libre</button>
+      <button onclick="resetDay('${selected}')">Restaurar</button>
+    </div>
+    <div class="manualbox" id="mbox">
+      <label>Entrada<input type="time" id="mIni" value="${s.ini||'10:00'}"></label>
+      <label>Salida<input type="time" id="mFin" value="${s.fin||'18:00'}"></label>
+      <button class="pri" style="flex-basis:100%" onclick="saveManual('${selected}')">Guardar horario</button>
+    </div>`;
+  if(s.needsManual){const mb=document.getElementById('mbox');if(mb)mb.classList.add('show');}
+}
+
+function pick(k){selected=k;renderCal();}
+function toggleManual(){document.getElementById('mbox').classList.toggle('show');}
+function saveManual(k){
+  const ini=document.getElementById('mIni').value, fin=document.getElementById('mFin').value;
+  if(!ini||!fin)return;
+  overrides[k]={ini,fin,label:"Manual"};save();renderCal();
+}
+function setLibre(k){overrides[k]={libre:true};save();renderCal();}
+function resetDay(k){delete overrides[k];save();renderCal();}
+
+/* Lista: próximas semanas con turno */
+function renderList(){
+  const start=mondayOf(new Date());
+  let html="";
+  for(let w=0;w<26;w++){
+    const wStart=new Date(start);wStart.setDate(start.getDate()+w*7);
+    const morning=isMorningWeek(wStart);
+    const badge=morning?H1:H2;
+    let rows="";
+    for(let i=0;i<7;i++){
+      const d=new Date(wStart);d.setDate(wStart.getDate()+i);
+      const s=shiftFor(d);
+      if(s.libre&&!overrides[key(d)])continue; // ocultar libres base
+      const hrs=s.ini?`${s.ini}–${s.fin}`:(s.needsManual?"cargar horario":"libre");
+      const note=s.manual?"manual":s.needsManual?"sáb":"";
+      rows+=`<div class="li"><div class="bar" style="background:${s.color||'var(--libre)'}"></div>
+        <div class="day">${DOW[(d.getDay()+6)%7]} ${d.getDate()}/${d.getMonth()+1}</div>
+        <div class="hrs">${hrs}</div><div class="note">${note}</div></div>`;
+    }
+    const wLabel=`Sem ${wStart.getDate()}/${wStart.getMonth()+1}`;
+    html+=`<div class="weekblock"><div class="weekttl">${wLabel}
+      <span class="badge" style="background:${badge.color}">${badge.label}</span></div>${rows}</div>`;
+  }
+  viewList.innerHTML=html||`<div class="empty-msg">Sin datos</div>`;
+}
+
+/* Init */
+renderDow();renderCal();
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
+</script>
+</body>
+</html>
