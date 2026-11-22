@@ -197,7 +197,7 @@ h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--
           <p class="note">Si la salida es menor que la entrada, se toma como que cerrás al día siguiente.</p>
         </div>
 
-        <label class="chk mt hide" id="lbSabN" for="fSabN"><input type="checkbox" id="fSabN"> Sábado de semana de mañana (06–14 normales)</label>
+        <label class="chk mt hide" id="lbSabN" for="fSabN"><input type="checkbox" id="fSabN"> Sábado de semana de mañana (06–13 normales)</label>
         <label class="chk mt" for="fFer"><input type="checkbox" id="fFer"> Es feriado</label>
 
         <div class="cinta" id="cinta"></div>
@@ -268,11 +268,12 @@ h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--
     <div class="card">
       <p class="note" style="margin:0">
         Las extras se liquidan por período, no por mes calendario: del 21 de un mes al 20 del siguiente. Lo que trabajás del 21 al 31 de agosto entra en el período de septiembre.<br>
-        Turnos de 8 h: mañana 06–14, tarde 14–22, noche 22–06.<br>
+        Turnos de 8 h de lunes a viernes: mañana 06–14, tarde 14–22, noche 22–06.<br>
+        Sábados, domingos y feriados la jornada es de <b>7 h</b>: mañana 06–13, tarde 14–21, noche 22–05.<br>
         Lunes a viernes y sábado hasta las 12: lo que pasa de la jornada prevista va al 50 %. Por turno la jornada es de 8 h; en modo entrada y salida la definís vos (útil si tenés horario especial de ingreso).<br>
         Sábado desde las 12, domingos y feriados: <b>todas</b> las horas al 100 %.<br>
-        Excepción: si estás de semana de mañana, el sábado de 06 a 14 va entero como horas normales. La casilla se marca sola cuando cargás turno mañana un sábado.<br>
-        Sábado trabajando después de las 17 → 1 franco. Domingo → 1 franco. Máximo 1 por jornada.<br>
+        Excepción: si estás de semana de mañana, el sábado de 06 a 13 va entero como horas normales. La casilla se marca sola cuando cargás turno mañana un sábado.<br>
+        Sábado trabajando después de las 17 → 1 franco. Domingo → 1 franco. Máximo 1 por jornada. Los feriados pagan al 100 % pero no generan franco.<br>
         Los tramos se cortan por medianoche: un turno noche reparte sus horas entre los dos días.
       </p>
     </div>
@@ -309,6 +310,7 @@ const TURNOS={manana:{n:'Mañana',in:'06:00',out:'14:00',c:'var(--manana)'},
               manual:{n:'Manual',c:'var(--normal)'},
               franco:{n:'Franco tomado',c:'var(--franco)'}};
 const BASE=480; // jornada normal en minutos
+const CORTA=420; // jornada de 7 h: sábados, domingos y feriados
 let S={regs:[],feriados:[],corte:20};
 let form={tipo:'trabajo',modo:'turno',turno:'manana',editId:null};
 let mesR=hoyMes(), mesS=hoyMes(), modoPer='periodo';
@@ -332,7 +334,7 @@ function es100(d,fer,sabN){
   if(fer.has(k)) return true;          // feriado
   if(dow===0) return true;             // domingo
   if(dow===6){
-    if(sabN && h>=6 && h<14) return false; // sábado de semana de mañana: turno normal
+    if(sabN && h>=6 && h<13) return false; // sábado de semana de mañana: 06–13 normales
     return h>=12;                          // sábado desde las 12
   }
   return false;
@@ -422,18 +424,28 @@ function pintarRotacion(){
 
 /* ---------- formulario ---------- */
 const $=id=>document.getElementById(id);
+/* Fin de semana y feriados: la jornada del turno es de 7 h, no de 8 */
+function largoTurno(fecha,fer){
+  if(!fecha) return BASE;
+  const dow=dtOf(fecha,'12:00').getDay();
+  return (dow===6||dow===0||fer) ? CORTA : BASE;
+}
 function horasForm(){
   if(form.modo==='manual') return {in:$('fIn').value||'06:00',out:$('fOut').value||'14:00',turno:'manual'};
   const t=TURNOS[form.turno];
+  const largo=largoTurno($('fFecha').value,$('fFer').checked);
   const a=Math.max(0,parseFloat($('fAntes').value)||0), d=Math.max(0,parseFloat($('fDesp').value)||0);
-  const i=addMin(dtOf('2000-01-02',t.in),-a*60), f=addMin(dtOf('2000-01-02',t.out),d*60);
+  const i=addMin(dtOf('2000-01-02',t.in),-a*60);
+  const f=addMin(addMin(dtOf('2000-01-02',t.in),largo),d*60);
   return {in:pad(i.getHours())+':'+pad(i.getMinutes()),out:pad(f.getHours())+':'+pad(f.getMinutes()),turno:form.turno};
 }
 function regForm(){
   const fecha=$('fFecha').value||ymd(new Date());
   if(form.tipo==='franco') return {fecha:fecha,tipo:'franco',turno:'franco',in:'00:00',out:'00:00',nota:$('fNota').value.trim()};
   const h=horasForm();
-  const base = form.modo==='manual' ? Math.round((parseFloat($('fBase').value)||8)*60) : BASE;
+  const base = form.modo==='manual'
+    ? Math.round((parseFloat($('fBase').value)||8)*60)
+    : largoTurno(fecha,$('fFer').checked);
   return {fecha:fecha,tipo:'trabajo',turno:h.turno,in:h.in,out:h.out,base:base,sabNorm:$('fSabN').checked,nota:$('fNota').value.trim()};
 }
 function esSabado(f){return f && dtOf(f,'12:00').getDay()===6}
@@ -448,11 +460,20 @@ function sincSabN(auto){
   if(!sab){$('fSabN').checked=false;return}
   if(auto) $('fSabN').checked = (form.modo==='turno' && form.turno==='manana');
 }
+function pintarHorariosTurno(){
+  const largo=largoTurno($('fFecha').value,$('fFer').checked);
+  [...$('turnos').children].forEach(b=>{
+    const t=TURNOS[b.dataset.v], f=addMin(dtOf('2000-01-02',t.in),largo);
+    b.querySelector('.h').textContent=t.in.slice(0,2)+' — '+pad(f.getHours())+
+      (largo!==BASE?' ('+(largo/60)+' h)':'');
+  });
+}
 function pintarPreview(){
   if(form.tipo==='franco'){$('cinta').innerHTML='';$('totPrev').innerHTML='';$('notaPrev').textContent='';return}
   const fer=new Set(S.feriados); const fecha=$('fFecha').value;
   if($('fFer').checked && fecha) fer.add(fecha); else fer.delete(fecha);
   S.feriados=[...fer];
+  pintarHorariosTurno();
   const c=calc(regForm());
   const LB={normal:['Normales','var(--normal)'],x50:['Extra 50 %','var(--x50)'],x100:['Al 100 %','var(--x100)']};
   $('cinta').innerHTML=
@@ -476,8 +497,9 @@ function cargarEn(r){
       form.modo='turno'; form.turno=r.turno;
       const t=TURNOS[r.turno];
       const a=(dtOf('2000-01-02',t.in)-dtOf('2000-01-02',r.in))/3600000;
-      let f=dtOf('2000-01-02',r.out), o=dtOf('2000-01-02',t.out);
-      if(r.turno==='noche'){ if(f<dtOf('2000-01-02',r.in))f=addMin(f,1440); o=addMin(o,1440); }
+      let f=dtOf('2000-01-02',r.out), o=addMin(dtOf('2000-01-02',t.in),r.base||BASE);
+      if(r.turno==='noche'){ if(f<dtOf('2000-01-02',r.in))f=addMin(f,1440); }
+      if(f<o) f=addMin(f,1440);
       $('fAntes').value=Math.max(0,a); $('fDesp').value=Math.max(0,(f-o)/3600000);
     }else{ form.modo='manual'; $('fIn').value=r.in; $('fOut').value=r.out; $('fBase').value=(r.base||BASE)/60; }
   }
